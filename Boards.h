@@ -999,6 +999,7 @@
       #define BLE_MANUFACTURER "Elecrow"
       #define BLE_MODEL "ThinkNode M6"
       #define BOARD_SHORT_NAME "ThinkNode M6"
+      #define BOARD_PORT_NOTE "M6 port by mesh.je"   // shown on the NomadNet home and About pages
       #define OCP_TUNED 0x38   // 140 mA, as MeshCore sets for this board at +22 dBm
       #define HAS_SLEEP true          // FUNCTION button hold powers the node off (System OFF)
       #define SLEEP_HOLD_MS 3000       // deliberate hold: this is a sealed node on a mast

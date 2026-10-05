@@ -619,6 +619,9 @@ static void pg_home(const RNS::Bytes& rid) {
     else if (rid.size() && sm.pw_on && !preview) { PL("Register", 'l'); P("\n"); }
     if (!preview) P_verified(rid);
     P("-\n`c%s ScotMesh microReticulum\n`c%s " MIDDOT " %s", SM_FLAG, SCOTMESH_FW_TAG, BOARD_SHORT_NAME);
+    #ifdef BOARD_PORT_NOTE
+      P("\n`c" DIM(BOARD_PORT_NOTE));   // board port not (yet) upstream: say who maintains it
+    #endif
     if (sm_pn <= SM_HOME_BUDGET || pass == 4) break;
     dropped |= order[pass];
   }
@@ -1007,6 +1010,9 @@ static void pg_update(const RNS::Bytes& rid) {
 static void pg_about() {
   auto hx = [](const RNS::Destination& d) { return d ? d.hash().toHex() : std::string("-"); };
   Ph("About"); P("%s " MIDDOT " " BOARD_SHORT_NAME "\n", SCOTMESH_FW_TAG);
+  #ifdef BOARD_PORT_NOTE
+    P(DIM(BOARD_PORT_NOTE) "\n");
+  #endif
   P(DIM("Transport identity") "\n%s\n", RNS::Transport::identity().hash().toHex().c_str());
   P(DIM("Management") "\n%s\n", hx(RNS::Transport::remote_management_destination()).c_str());
   P(DIM("NomadNet") "\n%s\n", hx(nomadnet_destination).c_str());
