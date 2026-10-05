@@ -123,7 +123,9 @@
   #define BOARD_SEEED_P1      0x53 // Seeed SenseCAP Solar Node P1 (XIAO nRF52840 Plus + Wio-SX1262).
                                    // Provisioned as PRODUCT_RAK4631 / MODEL_12 so stock rnodeconf
                                    // recognises it (same MCU, radio and 22 dBm 868 MHz band).
-  #define MODEL_13            0x13 // RAK3401 + RAK13302, 433 MHz
+  #define BOARD_THINKNODE_M6  0x54 // Elecrow ThinkNode M6 (nRF52840 + SX1262, 2x18650, 6 W solar).
+                                   // Provisioned as PRODUCT_RAK4631 / MODEL_12, like the P1.
+  #define MODEL_13           0x13 // RAK3401 + RAK13302, 433 MHz
   #define MODEL_14            0x14 // RAK3401 + RAK13302, 868 MHz
 
   #define PIN_3V3_EN          34   // WB_IO2 — 5V boost + 3V3_S rail (RAK13302 FEM)
@@ -170,7 +172,7 @@
   #endif
 
   #ifndef MODEM
-    #if BOARD_MODEL == BOARD_RAK4631 || BOARD_MODEL == BOARD_RAK3401 || BOARD_MODEL == BOARD_SEEED_P1
+    #if BOARD_MODEL == BOARD_RAK4631 || BOARD_MODEL == BOARD_RAK3401 || BOARD_MODEL == BOARD_SEEED_P1 || BOARD_MODEL == BOARD_THINKNODE_M6
       #define MODEM SX1262
     #elif BOARD_MODEL == BOARD_GENERIC_NRF52
       #define MODEM SX1262
@@ -972,6 +974,61 @@
       const int pin_gps_en = 18;       // P1.05, L76K on the P1-Pro; kept off
       const int pin_qspi_cs = 22;      // P0.25, on-board P25Q16H QSPI flash
 
+    #elif BOARD_MODEL == BOARD_THINKNODE_M6
+      // Elecrow ThinkNode M6: nRF52840 + SX1262 with DIO2 as the RF switch (no
+      // RXEN/TXEN) and a 3.3 V TCXO on DIO3. Pins are P0/P1 identity-mapped
+      // Arduino numbers from variants/thinknode_m6 (Meshtastic, MeshCore and
+      // the Elecrow demo agree on every LoRa pin).
+      #define HAS_EEPROM false
+      #define HAS_DISPLAY false
+      #define HAS_BLUETOOTH false
+      #define HAS_BLE true
+      #define HAS_CONSOLE false
+      #define HAS_PMU true
+      #define HAS_NP false
+      #define HAS_SD false
+      #define HAS_TCXO true            // DIO3-driven TCXO at 3.3 V (see sx126x::enableTCXO)
+      #define HAS_BUSY true
+      #define HAS_INPUT true
+      #define DIO2_AS_RF_SWITCH true   // RF switch driven entirely by SX1262 DIO2
+      #define CONFIG_UART_BUFFER_SIZE 6144
+      #define CONFIG_QUEUE_SIZE 6144
+      #define CONFIG_QUEUE_MAX_LENGTH 200
+      #define EEPROM_SIZE 296
+      #define EEPROM_OFFSET EEPROM_SIZE-EEPROM_RESERVED
+      #define BLE_MANUFACTURER "Elecrow"
+      #define BLE_MODEL "ThinkNode M6"
+      #define BOARD_SHORT_NAME "ThinkNode M6"
+      #define OCP_TUNED 0x38   // 140 mA, as MeshCore sets for this board at +22 dBm
+      #define HAS_SLEEP true          // FUNCTION button hold powers the node off (System OFF)
+      #define SLEEP_HOLD_MS 3000       // deliberate hold: this is a sealed node on a mast
+
+      // SX1262 on SPI0
+      const int pin_reset = 42;        // P1.10
+      const int pin_cs = 44;           // P1.12
+      const int pin_sclk = 45;         // P1.13
+      const int pin_mosi = 46;         // P1.14
+      const int pin_miso = 47;         // P1.15
+      const int pin_busy = 43;         // P1.11
+      const int pin_dio = 38;          // P1.06 DIO1
+      const int pin_tcxo_enable = -1;  // TCXO powered by DIO3 via enableTCXO(), not a GPIO
+
+      // LEDs (active HIGH): blue data LED P0.07 as RX, red LED P0.12 as TX
+      const int pin_led_rx = 7;
+      const int pin_led_tx = 12;
+
+      // User/PWR button P0.17 (active LOW, pull-up)
+      const int pin_btn_usr1 = 17;
+
+      // Battery divider on P0.28 / AIN4, connected while P0.11 is HIGH. Read in Power.h.
+      const int pin_vbat_en = 11;
+
+      // Power rails we must settle early (see setup() in RNode_Firmware.ino)
+      const int pin_power_en = 27;     // P0.27, SX1262 / peripheral rail, HIGH = on
+      const int pin_flash_en = 21;     // P0.21, MX25R1635F QSPI flash rail, HIGH = on
+      const int pin_gps_en = 6;        // P0.06, L76K; kept off (P0.29 GPS reset left floating)
+      const int pin_qspi_cs = 23;      // P0.23
+
     #elif BOARD_MODEL == BOARD_TECHO
       #define _PINNUM(port, pin) ((port) * 32 + (pin))
       #define MODEM SX1262
@@ -1191,6 +1248,11 @@
 
   // Default OCP value if not specified
   // in board configuration
+  // Button hold (ms) that calls sleep_now() on boards with HAS_SLEEP
+  #ifndef SLEEP_HOLD_MS
+    #define SLEEP_HOLD_MS 700
+  #endif
+
   #ifndef OCP_TUNED
     #define OCP_TUNED 0x28
   #endif

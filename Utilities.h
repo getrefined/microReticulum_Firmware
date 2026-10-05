@@ -399,7 +399,7 @@ extern RNS::Reticulum reticulum;
 		void led_tx_off() { digitalWrite(pin_led_tx, LOW); }
 		void led_id_on()  { }
 		void led_id_off() { }
-	#elif BOARD_MODEL == BOARD_SEEED_P1
+	#elif BOARD_MODEL == BOARD_SEEED_P1 || BOARD_MODEL == BOARD_THINKNODE_M6
 		void led_rx_on()  { if (sm_leds_off) return; digitalWrite(pin_led_rx, HIGH); }
 		void led_rx_off() {	digitalWrite(pin_led_rx, LOW); }
 		void led_tx_on()  { if (sm_leds_off) return; digitalWrite(pin_led_tx, HIGH); }
@@ -1807,6 +1807,8 @@ bool eeprom_model_valid() {
   if (model == MODEL_13 || model == MODEL_14) {
   #elif BOARD_MODEL == BOARD_SEEED_P1
   if (model == MODEL_12) {   // 779-928 MHz, 22 dBm; the P1 is an 868 MHz-only product
+  #elif BOARD_MODEL == BOARD_THINKNODE_M6
+  if (model == MODEL_12) {   // 779-928 MHz, 22 dBm; this build targets the 868 MHz M6
 	#elif BOARD_MODEL == BOARD_HUZZAH32
 	if (model == MODEL_FF) {
 	#elif BOARD_MODEL == BOARD_GENERIC_ESP32

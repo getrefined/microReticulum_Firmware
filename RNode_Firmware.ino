@@ -500,6 +500,13 @@ void setup() {
 
   Serial.begin(serial_baudrate);
 
+  #ifdef BOOT_WAIT_SERIAL
+    // Bench debugging: hold boot for up to BOOT_WAIT_SERIAL ms so a host can
+    // open the USB port and capture the [init] log of a board with no display.
+    while (!Serial && millis() < BOOT_WAIT_SERIAL) { delay(10); }
+    delay(500);
+  #endif
+
   // Redirect stdout to KISS framed logs
   install_kiss_stdout();
 
@@ -617,6 +624,27 @@ void setup() {
       pinMode(pin_btn_usr1, INPUT_PULLUP);
       delay(10);   // let the SX1262 rail settle, as MeshCore does
     #endif
+    #if BOARD_MODEL == BOARD_THINKNODE_M6
+      // Mirror initVariant(): peripheral and QSPI flash rails on, GPS off (its
+      // reset line P0.29 stays floating), QSPI flash deselected, battery
+      // divider connected, LEDs off, button pulled up.
+      pinMode(pin_power_en, OUTPUT);
+      digitalWrite(pin_power_en, HIGH);
+      pinMode(pin_flash_en, OUTPUT);
+      digitalWrite(pin_flash_en, HIGH);
+      pinMode(pin_gps_en, OUTPUT);
+      digitalWrite(pin_gps_en, LOW);
+      pinMode(pin_qspi_cs, OUTPUT);
+      digitalWrite(pin_qspi_cs, HIGH);
+      pinMode(pin_vbat_en, OUTPUT);
+      digitalWrite(pin_vbat_en, HIGH);
+      pinMode(pin_led_rx, OUTPUT);
+      digitalWrite(pin_led_rx, LOW);
+      pinMode(pin_led_tx, OUTPUT);
+      digitalWrite(pin_led_tx, LOW);
+      pinMode(pin_btn_usr1, INPUT_PULLUP);
+      delay(10);   // let the SX1262 and flash rails settle
+    #endif
 
     if (!eeprom_begin()) { Serial.write("EEPROM initialisation failed.\r\n"); }
   #endif
@@ -651,9 +679,9 @@ void setup() {
     boot_seq();
   #endif
 
-  #if BOARD_MODEL != BOARD_RAK4631 && BOARD_MODEL != BOARD_RAK3401 && BOARD_MODEL != BOARD_SEEED_P1 && BOARD_MODEL != BOARD_HELTEC_T114 && BOARD_MODEL != BOARD_TECHO && BOARD_MODEL != BOARD_T3S3 && BOARD_MODEL != BOARD_TBEAM_S_V1 && BOARD_MODEL != BOARD_HELTEC32_V4 && BOARD_MODEL != BOARD_HELTEC_TRACKER_V2
+  #if BOARD_MODEL != BOARD_RAK4631 && BOARD_MODEL != BOARD_RAK3401 && BOARD_MODEL != BOARD_SEEED_P1 && BOARD_MODEL != BOARD_THINKNODE_M6 && BOARD_MODEL != BOARD_HELTEC_T114 && BOARD_MODEL != BOARD_TECHO && BOARD_MODEL != BOARD_T3S3 && BOARD_MODEL != BOARD_TBEAM_S_V1 && BOARD_MODEL != BOARD_HELTEC32_V4 && BOARD_MODEL != BOARD_HELTEC_TRACKER_V2
     // Some boards need to wait until the hardware UART is set up before booting
-    // the full firmware. In the case of the RAK4631, RAK3401, Seeed P1, and Heltec T114,
+    // the full firmware. In the case of the RAK4631, RAK3401, Seeed P1, ThinkNode M6 and Heltec T114,
     // the line below will wait until a serial connection is actually established
     // with a master. Thus, it is disabled on this platform.
     while (!Serial);
@@ -772,6 +800,13 @@ void setup() {
       delay(10);
       LoRa->reset();
       delay(10);
+    #endif
+    #if BOARD_MODEL == BOARD_THINKNODE_M6
+      // The M6's battery keeps the SX1262 powered across MCU resets and
+      // firmware swaps, so it can be left asleep or mid-operation by whatever
+      // ran before (Meshtastic leaves it unreachable). Pulse NRESET, as
+      // RadioLib does, so the probe always starts from a clean STDBY_RC.
+      LoRa->reset();
     #endif
     if (LoRa->preInit()) {
       modem_installed = true;
@@ -1058,6 +1093,45 @@ void setup() {
         // booted with before it ran out of memory 30 hours later. 150 records
         // is ~21 KB and still far more than this node routes to; the store is
         // LRU, so the paths in use are the ones it keeps.
+        RNS::Transport::path_table_maxsize(150);
+        RNS::Transport::path_store_segment_size(24576);
+        RNS::Transport::path_store_segment_count(8);
+      }
+    }
+    if (!init_success) {
+      WARNING("QSPI flash unavailable, falling back to internal flash (28 KB)");
+      filesystem = microStore::Adapters::InternalFSFileSystem();
+      if (!filesystem.init()) WARNING("Failed to initialize filesystem!");
+      else TRACE("Initialized internal flash");
+    }
+#elif BOARD_MODEL == BOARD_THINKNODE_M6
+    // The M6 carries a 2 MB Macronix MX25R1635F on the nRF52840's QSPI
+    // peripheral (pins from variants/thinknode_m6/variant.h), powered by
+    // VDD_FLASH_EN which setup() has already driven HIGH. Same RAM-bound path
+    // table sizing as the P1 (see above): 150 records.
+    bool init_success = false;
+    {
+      TRACE("Looking for on-board MX25R1635F QSPI flash...");
+      static Adafruit_FlashTransport_QSPI qspi_transport(PIN_QSPI_SCK, PIN_QSPI_CS, PIN_QSPI_IO0, PIN_QSPI_IO1, PIN_QSPI_IO2, PIN_QSPI_IO3);
+      static const SPIFlash_Device_t device = MX25R1635F;
+      // Like the radio, the flash stays powered across resets, so release it
+      // from any deep power-down (0xAB) a previous firmware left it in; tRES1
+      // is 35 us on the MX25R1635F. NOTE: on the first bench unit the JEDEC
+      // read still returns 00 00 00 with VDD_FLASH_EN either HIGH or LOW, so
+      // the node runs on the InternalFS fallback. Neither Meshtastic nor
+      // MeshCore actually uses this flash, so the pin map is unproven.
+      qspi_transport.begin();
+      qspi_transport.runCommand(0xAB);
+      delayMicroseconds(50);
+      {
+        uint8_t jedec[3] = {0, 0, 0};
+        qspi_transport.readCommand(0x9F, jedec, 3);
+        printf("[init] QSPI JEDEC ID %02X %02X %02X (MX25R1635F is C2 28 15)\r\n", jedec[0], jedec[1], jedec[2]);
+      }
+      filesystem = microStore::Adapters::FlashFSFileSystem(&device, &qspi_transport);
+      if (filesystem.init()) {
+        TRACE("Initialized MX25R1635F QSPI flash");
+        init_success = true;
         RNS::Transport::path_table_maxsize(150);
         RNS::Transport::path_store_segment_size(24576);
         RNS::Transport::path_store_segment_count(8);
@@ -2923,6 +2997,14 @@ void loop() {
 
   #if HAS_INPUT
     input_read();
+    #if BOARD_MODEL == BOARD_THINKNODE_M6
+      // Hold feedback: the red LED lights once a hold is long enough to power
+      // off on release, and goes out again past 5 s (the BLE pairing hold).
+      if (button_pressed()) {
+        unsigned long held = millis() - button_down_last;
+        digitalWrite(pin_led_tx, (held > SLEEP_HOLD_MS && held <= 5000) ? HIGH : LOW);
+      }
+    #endif
   #endif
 
 #ifdef SCOTMESH_PAGES
@@ -2989,6 +3071,19 @@ void sleep_now() {
         digitalWrite(PIN_VEXT_EN, LOW);
         digitalWrite(PIN_T114_TFT_BLGT, HIGH);
         digitalWrite(PIN_T114_TFT_EN, HIGH);
+      #elif BOARD_MODEL == BOARD_THINKNODE_M6
+        // Three red blinks to confirm, then drop every rail the firmware owns.
+        // The radio is already stopped; the battery divider and GPS go too.
+        for (uint8_t i = 0; i < 3; i++) {
+          digitalWrite(pin_led_tx, HIGH); delay(150);
+          digitalWrite(pin_led_tx, LOW);  delay(150);
+        }
+        digitalWrite(pin_led_rx, LOW);
+        digitalWrite(pin_vbat_en, LOW);
+        digitalWrite(pin_gps_en, LOW);
+        digitalWrite(pin_flash_en, LOW);
+        digitalWrite(pin_power_en, LOW);
+        delay(100);
       #elif BOARD_MODEL == BOARD_TECHO
         for (uint8_t i = display_intensity; i > 0; i--) { analogWrite(pin_backlight, i-1); delay(1); }
         epd_black(true); delay(300); epd_black(true); delay(300); epd_black(false);
@@ -3020,7 +3115,7 @@ void button_event(uint8_t event, unsigned long duration) {
         #if HAS_BLUETOOTH || HAS_BLE
           if (bt_state != BT_STATE_CONNECTED) { bt_enable_pairing(); }
         #endif
-      } else if (duration > 700) {
+      } else if (duration > SLEEP_HOLD_MS) {
         #if HAS_SLEEP
           sleep_now();
         #endif

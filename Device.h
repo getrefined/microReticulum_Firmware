@@ -157,10 +157,12 @@ void device_save_firmware_hash() {
 }
 
 #if MCU_VARIANT == MCU_NRF52
-#if BOARD_MODEL == BOARD_SEEED_P1
+#if BOARD_MODEL == BOARD_SEEED_P1 || BOARD_MODEL == BOARD_THINKNODE_M6
 // Seeed's bootloader build ("UF2 Bootloader 0.9.2-OTAFIX2.2-BP1.3") does not
 // leave the flashed image size at IMG_SIZE_START the way the Adafruit
-// bootloader does, so the self-hash covered the wrong span. Take the size
+// bootloader does, so the self-hash covered the wrong span. The ThinkNode M6
+// ships a similar non-stock build ("UF2 Bootloader 0.9.2-6-g3a2708b-dirty")
+// and is flashed by UF2 drag-and-drop, which never writes that field. Take the size
 // from the linker instead: .text up to __etext plus the initialised .data
 // that follows it in flash is exactly what objcopy emits as the .bin that
 // rnodeconf --firmware-hash is computed over.

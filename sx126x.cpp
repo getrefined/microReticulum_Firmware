@@ -825,6 +825,9 @@ void sx126x::enableTCXO() {
       } else {
         #if BOARD_MODEL == BOARD_RAK4631 || BOARD_MODEL == BOARD_HELTEC32_V3 || BOARD_MODEL == BOARD_XIAO_S3
           mode = MODE_TCXO_3_3V_6X;
+        #elif BOARD_MODEL == BOARD_THINKNODE_M6
+          // DIO3 TCXO at 3.3 V (SX126X_DIO3_TCXO_VOLTAGE 3.3 in both Meshtastic and MeshCore)
+          mode = MODE_TCXO_3_3V_6X;
         #elif BOARD_MODEL == BOARD_RAK3401
           // RAK13302 specifies DIO3 TCXO at 1.8V (SX126X_DIO3_TCXO_VOLTAGE 1.8)
           mode = MODE_TCXO_1_8V_6X;

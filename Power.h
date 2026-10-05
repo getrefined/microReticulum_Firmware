@@ -217,6 +217,27 @@ float pmu_temperature = PMU_TEMP_MIN-1;
   bool bat_voltage_dropping = false;
   float bat_delay_v = 0;
   float bat_state_change_v = 0;
+#elif BOARD_MODEL == BOARD_THINKNODE_M6
+  // 2x18650 in parallel (one cell's voltage) behind a divider on P0.28 (AIN4),
+  // connected while P0.11 is HIGH. 12-bit against the internal 3.0 V reference
+  // with MeshCore's x1.75 multiplier (Meshtastic's 2.4 V reference would clip
+  // at 4.2 V). The divider resistors are not published; check against a meter.
+  #define BAT_V_MIN       3.30    // MeshCore auto-shutdown point for this board
+  #define BAT_V_MAX       4.15
+  #define BAT_V_CHG       4.48
+  #define BAT_V_FLOAT     4.33
+  #define BAT_SAMPLES     7
+  #define M6_VBAT_MULTIPLIER 1.75
+  const uint8_t pin_vbat = 28;
+  float bat_p_samples[BAT_SAMPLES];
+  float bat_v_samples[BAT_SAMPLES];
+  uint8_t bat_samples_count = 0;
+  int bat_discharging_samples = 0;
+  int bat_charging_samples = 0;
+  int bat_charged_samples = 0;
+  bool bat_voltage_dropping = false;
+  float bat_delay_v = 0;
+  float bat_state_change_v = 0;
 #elif BOARD_MODEL == BOARD_RAK4631 || BOARD_MODEL == BOARD_RAK3401
   #define BAT_V_MIN       3.15
   #define BAT_V_MAX       4.2
@@ -255,7 +276,7 @@ void measure_temperature() {
 }
 
 void measure_battery() {
-  #if BOARD_MODEL == BOARD_RNODE_NG_21 || BOARD_MODEL == BOARD_LORA32_V2_1 || BOARD_MODEL == BOARD_HELTEC32_V3 || BOARD_MODEL == BOARD_HELTEC32_V4 || BOARD_MODEL == BOARD_HELTEC_TRACKER_V2 || BOARD_MODEL == BOARD_TDECK || BOARD_MODEL == BOARD_T3S3 || BOARD_MODEL == BOARD_HELTEC_T114 || BOARD_MODEL == BOARD_TECHO || BOARD_MODEL == BOARD_RAK4631 || BOARD_MODEL == BOARD_RAK3401 || BOARD_MODEL == BOARD_SEEED_P1
+  #if BOARD_MODEL == BOARD_RNODE_NG_21 || BOARD_MODEL == BOARD_LORA32_V2_1 || BOARD_MODEL == BOARD_HELTEC32_V3 || BOARD_MODEL == BOARD_HELTEC32_V4 || BOARD_MODEL == BOARD_HELTEC_TRACKER_V2 || BOARD_MODEL == BOARD_TDECK || BOARD_MODEL == BOARD_T3S3 || BOARD_MODEL == BOARD_HELTEC_T114 || BOARD_MODEL == BOARD_TECHO || BOARD_MODEL == BOARD_RAK4631 || BOARD_MODEL == BOARD_RAK3401 || BOARD_MODEL == BOARD_SEEED_P1 || BOARD_MODEL == BOARD_THINKNODE_M6
     battery_installed = true;
     #if BOARD_MODEL == BOARD_HELTEC32_V3 || BOARD_MODEL == BOARD_HELTEC32_V4 || BOARD_MODEL == BOARD_HELTEC_TRACKER_V2
       battery_indeterminate = false;
@@ -281,6 +302,9 @@ void measure_battery() {
     #elif BOARD_MODEL == BOARD_SEEED_P1
       // 12-bit sample against the 3.0 V internal reference, scaled by the divider
       float battery_measurement = (float)(analogRead(pin_vbat)) * (3.0 / 4096.0) * P1_VBAT_DIVIDER;
+    #elif BOARD_MODEL == BOARD_THINKNODE_M6
+      // 12-bit sample against the 3.0 V internal reference, scaled by the divider
+      float battery_measurement = (float)(analogRead(pin_vbat)) * (3.0 / 4096.0) * M6_VBAT_MULTIPLIER;
     #else
       float battery_measurement = (float)(analogRead(pin_vbat)) / 4095.0*7.26;
     #endif
@@ -473,7 +497,7 @@ bool init_pmu() {
     pmu_temp_sensor_ready = true;
   #endif
 
-  #if BOARD_MODEL == BOARD_RNODE_NG_21 || BOARD_MODEL == BOARD_LORA32_V2_1 || BOARD_MODEL == BOARD_TDECK || BOARD_MODEL == BOARD_T3S3 || BOARD_MODEL == BOARD_TECHO || BOARD_MODEL == BOARD_RAK4631 || BOARD_MODEL == BOARD_RAK3401 || BOARD_MODEL == BOARD_SEEED_P1
+  #if BOARD_MODEL == BOARD_RNODE_NG_21 || BOARD_MODEL == BOARD_LORA32_V2_1 || BOARD_MODEL == BOARD_TDECK || BOARD_MODEL == BOARD_T3S3 || BOARD_MODEL == BOARD_TECHO || BOARD_MODEL == BOARD_RAK4631 || BOARD_MODEL == BOARD_RAK3401 || BOARD_MODEL == BOARD_SEEED_P1 || BOARD_MODEL == BOARD_THINKNODE_M6
     pinMode(pin_vbat, INPUT);
     #if BOARD_MODEL == BOARD_RAK4631 || BOARD_MODEL == BOARD_RAK3401
       analogReference(AR_INTERNAL_3_0);
@@ -482,6 +506,12 @@ bool init_pmu() {
       // The divider is only connected while P0.14 is driven LOW
       pinMode(pin_vbat_en, OUTPUT);
       digitalWrite(pin_vbat_en, LOW);
+      analogReference(AR_INTERNAL_3_0);
+      analogReadResolution(12);
+    #elif BOARD_MODEL == BOARD_THINKNODE_M6
+      // The divider is only connected while P0.11 is driven HIGH
+      pinMode(pin_vbat_en, OUTPUT);
+      digitalWrite(pin_vbat_en, HIGH);
       analogReference(AR_INTERNAL_3_0);
       analogReadResolution(12);
     #endif

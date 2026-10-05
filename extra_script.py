@@ -251,9 +251,9 @@ def firmware_package(env):
         env.Execute(zip_cmd)
     elif (platform == "nordicnrf52"):
         env.Execute("cp " + build_dir + "/" + env.subst("$PROGNAME") + ".zip " + project_dir + "/Release/.")
-        # Also emit a UF2 for boards with a UF2-capable bootloader (Seeed XIAO family:
-        # double-tap reset, drag the file onto the XIAO-BOOT drive). Family 0xADA52840 = nRF52840.
-        if variant and variant.startswith("seeed_"):
+        # Also emit a UF2 for boards with a UF2-capable bootloader (Seeed XIAO family,
+        # ThinkNode M6: double-tap reset, drag the file onto the bootloader drive). Family 0xADA52840 = nRF52840.
+        if variant and (variant.startswith("seeed_") or variant.startswith("thinknode_")):
             env.Execute("\"$PYTHONEXE\" " + project_dir + "/tools/uf2conv.py -f 0xADA52840 -c "
                         + build_dir + "/" + env.subst("$PROGNAME") + ".hex -o "
                         + project_dir + "/Release/" + env.subst("$PROGNAME") + ".uf2")
