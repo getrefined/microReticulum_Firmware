@@ -1,3 +1,49 @@
+# microReticulum_Firmware — Elecrow ThinkNode M6 port
+
+> **This is The Refinery's fork** of [ScotMesh/microReticulum_Firmware](https://github.com/ScotMesh/microReticulum_Firmware),
+> made to run the [mesh.je](https://mesh.je) Channel Islands Reticulum network on the
+> **Elecrow ThinkNode M6** solar node. The only change is the new `thinknode_m6` board, on the
+> `thinknode-m6` branch; `master` follows ScotMesh unchanged. Report problems with the M6 build
+> here, not to ScotMesh or upstream.
+>
+> All the real work is theirs: [Mark Qvist's RNode_Firmware](https://github.com/markqvist/RNode_Firmware)
+> → [attermann/microReticulum_Firmware](https://github.com/attermann/microReticulum_Firmware) (the
+> microReticulum stack running on the node) → [ScotMesh](https://github.com/ScotMesh/microReticulum_Firmware)
+> (the node pages, remote admin, nRF52 battery and flash work, and the Seeed SenseCAP P1 port that this
+> port is modelled on). Thank you all. The M6 pin map comes from Meshtastic's `ELECROW-ThinkNode-M6`
+> variant, cross-checked against MeshCore's `thinknode_m6` variant and Elecrow's demo code.
+>
+> Licensed GPL-3.0, like everything it builds on (see `LICENSE`).
+
+## What the M6 port adds
+
+| Area | Change |
+|---|---|
+| **Board** | New target `thinknode_m6` (`BOARD_THINKNODE_M6 0x54`): nRF52840 + SX1262 with DIO2 as the RF switch, 3.3 V TCXO on DIO3, 22 dBm, 2x18650 and 6 W solar. Pins and power rails in `Boards.h`, variant under `variants/thinknode_m6/`, board file `boards/thinknode_m6.json`. Provisioned like the P1 (`product 0x10`, `model 0x12`), so stock `rnodeconf` accepts it. |
+| **SoftDevice** | Elecrow ships S140 **6.1.1**, so the build uses the core's v6 linker script (app at `0x26000`). The firmware self-hash takes the image size from the linker, as on the P1, because UF2 drag-and-drop never writes it. |
+| **Radio reset** | The sealed battery keeps the SX1262 powered across MCU resets and firmware swaps, and after Meshtastic it doesn't answer. The firmware pulses NRESET before probing it. |
+| **Power off** | The M6 has no power switch. Hold FUNCTION for 3 s (the red LED lights) and release: three red blinks, then the nRF52 goes into System OFF with the radio, flash and GPS rails off. A press wakes it. |
+| **Battery** | VBAT on P0.28 through the divider enabled by P0.11, with MeshCore's x1.75 multiplier against the 3.0 V reference. Not yet checked against a meter. |
+| **Storage** | The board's 2 MB MX25R1635F QSPI flash doesn't answer on our first unit (JEDEC `00 00 00`), so the node falls back to the 28 KB internal flash. The QSPI path is in place for when the pin map is confirmed. |
+| **Builds** | `thinknode_m6` (release, also emits a `.uf2`) and `thinknode_m6-debug` (holds boot 15 s so the `[init]` log can be read over USB; never deploy it). |
+| **Node pages** | The NomadNet home and About pages show "M6 port by mesh.je" under the ScotMesh line, so people know who to ask. |
+
+### Build and flash
+
+```sh
+pio run -e thinknode_m6
+# Double-tap RESET: the ThinkNodeM6 drive mounts. Drag Release/*.uf2 onto it
+# (macOS may report an I/O error as the board reboots; that's normal).
+```
+
+Then provision with `rnodeconf` as for any RAK4631-class board (product 10, model 12). The firmware hash
+needs setting to the value the board computes itself. Keep a backup of the stock Meshtastic image if you
+may want to go back.
+
+Everything below this line is ScotMesh's README, unchanged.
+
+---
+
 ![ScotMesh Reticulum](https://raw.githubusercontent.com/ScotMesh/branding/main/networks/reticulum/readme-header.png)
 
 # microReticulum_Firmware — ScotMesh fork
