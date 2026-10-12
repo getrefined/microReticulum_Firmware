@@ -125,7 +125,7 @@
                                    // recognises it (same MCU, radio and 22 dBm 868 MHz band).
   #define BOARD_THINKNODE_M6  0x54 // Elecrow ThinkNode M6 (nRF52840 + SX1262, 2x18650, 6 W solar).
                                    // Provisioned as PRODUCT_RAK4631 / MODEL_12, like the P1.
-  #define MODEL_13           0x13 // RAK3401 + RAK13302, 433 MHz
+  #define MODEL_13            0x13 // RAK3401 + RAK13302, 433 MHz
   #define MODEL_14            0x14 // RAK3401 + RAK13302, 868 MHz
 
   #define PIN_3V3_EN          34   // WB_IO2 — 5V boost + 3V3_S rail (RAK13302 FEM)
